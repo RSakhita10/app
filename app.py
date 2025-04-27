@@ -1,78 +1,31 @@
-
 import streamlit as st
+from PIL import Image
 import pytesseract
-import cv2
-import re
-import json
-import tempfile
-import os
 
-# Preprocessing function
-def preprocess_image(image_path):
-    img = cv2.imread(image_path)
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    return thresh
+# Page configuration
+st.set_page_config(page_title="Personal Loan Document Processing", page_icon="🏦")
 
-# OCR Extraction
-def extract_text(image):
-    text = pytesseract.image_to_string(image)
-    return text
-
-# Field Extraction
-def extract_fields(text):
-    fields = {}
-    name_match = re.search(r"Name[:\s]*(.*)", text)
-    address_match = re.search(r"Address[:\s]*(.*)", text)
-    income_match = re.search(r"Income[:\s]*([\d,]+)", text)
-    loan_amount_match = re.search(r"Loan Amount[:\s]*([\d,]+)", text)
-
-    fields['Name'] = name_match.group(1) if name_match else ''
-    fields['Address'] = address_match.group(1) if address_match else ''
-    fields['Income'] = income_match.group(1) if income_match else ''
-    fields['Loan Amount'] = loan_amount_match.group(1) if loan_amount_match else ''
-
-    return fields
-
-# Save Data
-def save_to_system(data, filename="loan_applications.json"):
-    if not os.path.exists(filename):
-        with open(filename, "w") as f:
-            json.dump([], f)
-
-    with open(filename, "r+") as f:
-        file_data = json.load(f)
-        file_data.append(data)
-        f.seek(0)
-        json.dump(file_data, f, indent=4)
-
-# Streamlit UI
+# Title and instructions
 st.title("🏦 Personal Loan Document Processing")
+st.write("Upload your Loan Document (Only JPG, JPEG, or PNG)")
 
-uploaded_file = st.file_uploader("Upload your Loan Document (Image/PDF)", type=["jpg", "jpeg", "png"])
+# File uploader
+uploaded_file = st.file_uploader("Upload a loan document", type=["jpg", "jpeg", "png"])
 
-if uploaded_file:
-    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-        temp_file.write(uploaded_file.read())
-        temp_file_path = temp_file.name
+# Processing the uploaded file
+if uploaded_file is not None:
+    try:
+        # Open the uploaded image
+        image = Image.open(uploaded_file)
+        st.image(image, caption="Uploaded Document", use_column_width=True)
 
-    processed_img = preprocess_image(temp_file_path)
-    extracted_text = extract_text(processed_img)
-    fields = extract_fields(extracted_text)
+        # Extract text from the image
+        with st.spinner("Extracting text from document..."):
+            text = pytesseract.image_to_string(image)
+        
+        # Display extracted text
+        st.subheader("Extracted Document Text:")
+        st.text_area("Document Text", text, height=300)
 
-    st.subheader("Extracted Fields (You can edit them):")
-    name = st.text_input("Name", value=fields['Name'])
-    address = st.text_input("Address", value=fields['Address'])
-    income = st.text_input("Income", value=fields['Income'])
-    loan_amount = st.text_input("Loan Amount", value=fields['Loan Amount'])
-
-    if st.button("Submit Data"):
-        final_data = {
-            "Name": name,
-            "Address": address,
-            "Income": income,
-            "Loan Amount": loan_amount
-        }
-        save_to_system(final_data)
-        st.success("✅ Data saved successfully!")
+    except Exception as e:
+        st.error(f"Error processing the file: {e}")
